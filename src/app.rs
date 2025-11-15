@@ -7,6 +7,7 @@ pub struct App {
     pub screenplay: Screenplay,
     pub content: text_editor::Content,
     pub current_element_type: ElementType,
+    pub current_line: String,
 }
 
 impl Default for App {
@@ -15,6 +16,7 @@ impl Default for App {
             screenplay: Screenplay::new("Untitled".to_string()),
             content: text_editor::Content::new(),
             current_element_type: ElementType::Action,
+            current_line: String::new(),
         }
     }
 }
@@ -25,6 +27,7 @@ pub enum Message {
     TabPressed,
     EnterPressed,
     EventOccurred(Event),
+    TextChanged(String),
 }
 
 impl App {
@@ -36,18 +39,19 @@ impl App {
             Message::TabPressed => {
                 self.current_element_type = self.next_element_type();
             }
+            Message::TextChanged(text) => {
+                self.current_line = text;
+            }
             Message::EnterPressed => {
-                let current_text = self.content.text().trim().to_string();
-                
-                if !current_text.is_empty() {
+                if !self.current_line.trim().is_empty() {
                     let element = Element::new(
                         self.current_element_type,
-                        current_text.clone()
+                        self.current_line.clone()
                     );
                     
                     self.screenplay.add_element(element);
-                    self.current_element_type = self.detect_next_element_type(&current_text);
-                    self.content = text_editor::Content::new();
+                    self.current_element_type = self.detect_next_element_type(&self.current_line);
+                    self.current_line.clear();
                 }
             }
             Message::EventOccurred(event) => {
@@ -58,13 +62,6 @@ impl App {
                         ..
                     }) => {
                         return Task::done(Message::TabPressed);
-                    }
-                    Event::Keyboard(keyboard::Event::KeyPressed {
-                        key: keyboard::Key::Named(Named::Enter),
-                        modifiers: _,
-                        ..
-                    }) => {
-                        return Task::done(Message::EnterPressed);
                     }
                     _ => {}
                 }
