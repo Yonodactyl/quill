@@ -12,6 +12,7 @@ pub struct App {
     pub cursor_position: usize,
     pub cursor_offset: usize,
     pub cursor_visible: bool,
+    pub desired_cursor_offset: usize,
 }
 
 impl Default for App {
@@ -26,6 +27,7 @@ impl Default for App {
             cursor_position: 0,
             cursor_offset: 0,
             cursor_visible: true,
+            desired_cursor_offset: 0,
         }
     }
 }
@@ -37,6 +39,11 @@ pub enum Message {
     EnterPressed,
     CharacterTyped(char),
     BackspacePressed,
+    DeletePressed,
+    ArrowLeft,
+    ArrowRight,
+    ArrowUp,
+    ArrowDown,
     EventOccurred(Event),
     Tick,
 }
@@ -66,6 +73,7 @@ impl App {
                 if let Some(element) = self.screenplay.elements.get_mut(self.cursor_position) {
                     element.content.insert(self.cursor_offset, c);
                     self.cursor_offset += 1;
+                    self.desired_cursor_offset = self.cursor_offset;
                 }
             }
             Message::BackspacePressed => {
@@ -73,22 +81,89 @@ impl App {
                     if let Some(element) = self.screenplay.elements.get_mut(self.cursor_position) {
                         self.cursor_offset -= 1;
                         element.content.remove(self.cursor_offset);
+                        self.desired_cursor_offset = self.cursor_offset;
+                    }
+                } else if self.cursor_position > 0 {
+                    let current_is_empty = self.screenplay.elements
+                        .get(self.cursor_position)
+                        .map(|e| e.content.is_empty())
+                        .unwrap_or(false);
+
+                    if current_is_empty {
+                        self.screenplay.elements.remove(self.cursor_position);
+                        self.cursor_position -= 1;
+                        if let Some(element) = self.screenplay.elements.get(self.cursor_position) {
+                            self.cursor_offset = element.content.len();
+                            self.current_element_type = element.element_type;
+                            self.desired_cursor_offset = self.cursor_offset;
+                        }
+                    } else {
+                        self.cursor_position -= 1;
+                        if let Some(element) = self.screenplay.elements.get(self.cursor_position) {
+                            self.cursor_offset = element.content.len();
+                            self.current_element_type = element.element_type;
+                            self.desired_cursor_offset = self.cursor_offset;
+                        }
+                    }
+                }
+            }
+            Message::DeletePressed => {
+                if let Some(element) = self.screenplay.elements.get_mut(self.cursor_position) {
+                    if self.cursor_offset < element.content.len() {
+                        element.content.remove(self.cursor_offset);
+                    }
+                }
+            }
+            Message::ArrowLeft => {
+                if self.cursor_offset > 0 {
+                    self.cursor_offset -= 1;
+                    self.desired_cursor_offset = self.cursor_offset;
+                }
+            }
+            Message::ArrowRight => {
+                if let Some(element) = self.screenplay.elements.get(self.cursor_position) {
+                    if self.cursor_offset < element.content.len() {
+                        self.cursor_offset += 1;
+                        self.desired_cursor_offset = self.cursor_offset;
+                    } else if self.cursor_position < self.screenplay.elements.len() - 1 {
+                        self.cursor_position += 1;
+                        self.cursor_offset = 0;
+                        self.desired_cursor_offset = 0;
+                        if let Some(next_element) = self.screenplay.elements.get(self.cursor_position) {
+                            self.current_element_type = next_element.element_type;
+                        }
+                    }
+                }
+            }
+            Message::ArrowUp => {
+                if self.cursor_position > 0 {
+                    self.cursor_position -= 1;
+                    if let Some(element) = self.screenplay.elements.get(self.cursor_position) {
+                        self.cursor_offset = self.desired_cursor_offset.min(element.content.len());
+                        self.current_element_type = element.element_type;
+                    }
+                }
+            }
+            Message::ArrowDown => {
+                if self.cursor_position < self.screenplay.elements.len() - 1 {
+                    self.cursor_position += 1;
+                    if let Some(element) = self.screenplay.elements.get(self.cursor_position) {
+                        self.cursor_offset = self.desired_cursor_offset.min(element.content.len());
+                        self.current_element_type = element.element_type;
                     }
                 }
             }
             Message::EnterPressed => {
-                self.cursor_position += 1;
-                self.cursor_offset = 0;
-
-                if let Some(current_element) =
-                    self.screenplay.elements.get(self.cursor_position - 1)
-                {
+                if let Some(current_element) = self.screenplay.elements.get(self.cursor_position) {
                     self.current_element_type =
                         self.detect_next_element_type(&current_element.content);
                 }
 
                 let element = Element::new(self.current_element_type, String::new());
-                self.screenplay.add_element(element);
+                self.screenplay.insert_element(self.cursor_position + 1, element);
+                self.cursor_position += 1;
+                self.cursor_offset = 0;
+                self.desired_cursor_offset = 0;
             }
             Message::EventOccurred(event) => {
                 if let Event::Keyboard(keyboard::Event::KeyPressed { key, text, .. }) = event {
@@ -101,6 +176,21 @@ impl App {
                         }
                         Key::Named(Named::Backspace) => {
                             return Task::done(Message::BackspacePressed);
+                        }
+                        Key::Named(Named::Delete) => {
+                            return Task::done(Message::DeletePressed);
+                        }
+                        Key::Named(Named::ArrowLeft) => {
+                            return Task::done(Message::ArrowLeft);
+                        }
+                        Key::Named(Named::ArrowRight) => {
+                            return Task::done(Message::ArrowRight);
+                        }
+                        Key::Named(Named::ArrowUp) => {
+                            return Task::done(Message::ArrowUp);
+                        }
+                        Key::Named(Named::ArrowDown) => {
+                            return Task::done(Message::ArrowDown);
                         }
                         Key::Named(Named::Space) => {
                             return Task::done(Message::CharacterTyped(' '));
