@@ -8,6 +8,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
         app.screenplay.elements.clone(),
         app.cursor_position,
         app.cursor_offset,
+        app.cursor_visible,
     ))
     .width(iced::Length::Fill)
     .height(iced::Length::Fill);

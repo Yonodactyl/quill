@@ -1,22 +1,21 @@
 use crate::document::{Element, ElementType};
 use iced::widget::canvas;
-use iced::{mouse, Color, Font, Point, Rectangle, Renderer, Theme};
-use std::time::Instant;
+use iced::{mouse, Font, Point, Rectangle, Renderer, Theme};
 
 pub struct ScreenplayEditor {
     elements: Vec<Element>,
     cursor_position: usize,
     cursor_offset: usize,
-    last_blink: Instant,
+    cursor_visible: bool,
 }
 
 impl ScreenplayEditor {
-    pub fn new(elements: Vec<Element>, cursor_position: usize, cursor_offset: usize) -> Self {
+    pub fn new(elements: Vec<Element>, cursor_position: usize, cursor_offset: usize, cursor_visible: bool) -> Self {
         Self {
             elements,
             cursor_position,
             cursor_offset,
-            last_blink: Instant::now(),
+            cursor_visible,
         }
     }
 }
@@ -28,7 +27,7 @@ impl<Message> canvas::Program<Message> for ScreenplayEditor {
         &self,
         _state: &Self::State,
         renderer: &Renderer,
-        _theme: &Theme,
+        theme: &Theme,
         bounds: Rectangle,
         _cursor: mouse::Cursor,
     ) -> Vec<canvas::Geometry> {
@@ -37,7 +36,7 @@ impl<Message> canvas::Program<Message> for ScreenplayEditor {
         let mut y_position = 20.0;
         let line_height = 24.0;
         let font_size = 12.0;
-        
+
         let char_width = 7.2;
 
         let courier_font = Font {
@@ -46,6 +45,8 @@ impl<Message> canvas::Program<Message> for ScreenplayEditor {
             stretch: iced::font::Stretch::Normal,
             style: iced::font::Style::Normal,
         };
+
+        let text_color = theme.palette().text;
 
         for (index, element) in self.elements.iter().enumerate() {
             let (display_text, x_position) = match element.element_type {
@@ -72,24 +73,20 @@ impl<Message> canvas::Program<Message> for ScreenplayEditor {
             frame.fill_text(canvas::Text {
                 content: display_text.clone(),
                 position: Point::new(x_position, y_position),
-                color: Color::BLACK,
+                color: text_color,
                 size: font_size.into(),
                 font: courier_font,
                 ..canvas::Text::default()
             });
 
-            if index == self.cursor_position {
-                let should_show = (self.last_blink.elapsed().as_millis() / 500) % 2 == 0;
-                
-                if should_show {
-                    let cursor_x = x_position + (self.cursor_offset as f32 * char_width);
-                    
-                    frame.fill_rectangle(
-                        Point::new(cursor_x, y_position - 2.0),
-                        iced::Size::new(2.0, line_height - 2.0),
-                        Color::from_rgb(0.0, 0.0, 0.0),
-                    );
-                }
+            if index == self.cursor_position && self.cursor_visible {
+                let cursor_x = x_position + (self.cursor_offset as f32 * char_width);
+
+                frame.fill_rectangle(
+                    Point::new(cursor_x, y_position - 2.0),
+                    iced::Size::new(2.0, line_height - 2.0),
+                    text_color,
+                );
             }
 
             y_position += line_height;
